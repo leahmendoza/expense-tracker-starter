@@ -20,11 +20,17 @@ There is no test suite or test framework configured.
 
 ## Architecture
 
-A single-page React 19 app built with Vite. The entire application lives in **`src/App.jsx`** — one `App` component holding all state via `useState`. There is no routing, no backend, no persistence (state resets on reload), and no component decomposition.
+A single-page React 19 app built with Vite. There is no routing, no backend, and no persistence (state resets on reload).
 
-Data model: a `transactions` array seeded inline in `App.jsx`. Each transaction is `{ id, description, amount, type, category, date }` where `type` is `"income"` or `"expense"` and `category` is one of the strings in the `categories` array. Derived values (`totalIncome`, `totalExpenses`, `balance`, `filteredTransactions`) are computed on each render from that array.
+**`src/App.jsx`** is the container: it owns the `transactions` state and the `categories` list, exposes `handleAdd` to append a transaction, and composes three presentational children. Each child owns the local state only it needs:
+
+- **`src/Summary.jsx`** — receives `transactions`; computes `totalIncome`, `totalExpenses`, and `balance` internally and renders the summary cards.
+- **`src/TransactionForm.jsx`** — owns the form field state (`description`, `amount`, `type`, `category`); on submit it builds a new transaction and reports it up via the `onAdd` callback, then resets its fields.
+- **`src/TransactionList.jsx`** — receives `transactions` and `categories`; owns the `filterType`/`filterCategory` state and renders the filter controls plus the transactions table.
+
+Data model: a `transactions` array seeded inline in `App.jsx`. Each transaction is `{ id, description, amount, type, category, date }` where `type` is `"income"` or `"expense"` and `category` is one of the strings in the `categories` array. Seed `amount`s are numbers.
 
 ## Known defects (intentional — likely targets for course exercises)
 
-- **`amount` is stored as a string**, so the `reduce((sum, t) => sum + t.amount, 0)` calls for `totalIncome`/`totalExpenses` do **string concatenation**, not addition. The summary cards show garbage totals (e.g. `$05000`). Fixing usually means coercing with `Number(t.amount)`.
+- **Form-entered amounts stay strings.** `TransactionForm` passes the `<input>` value through unchanged, so a transaction added via the form has a string `amount`. `Summary`'s `reduce((sum, t) => sum + t.amount, 0)` then does **string concatenation** instead of addition, breaking the totals. (Seed data was already converted to numbers; the form is the remaining gap — fix with `Number(amount)` in the form's submit.)
 - The seeded **"Freelance Work"** entry has `type: "expense"` but `category: "salary"`, so it is miscounted as an expense.
