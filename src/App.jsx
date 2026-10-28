@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import './App.css'
 import Summary from './Summary'
 import TransactionForm from './TransactionForm'
 import TransactionList from './TransactionList'
 import SpendingChart from './SpendingChart'
+import Toast from './Toast'
+import { formatDate, formatSigned, signedAmount } from './format'
 
 function App() {
   const [transactions, setTransactions] = useState([
@@ -19,24 +21,55 @@ function App() {
 
   const categories = ["food", "housing", "utilities", "transport", "entertainment", "salary", "other"];
 
+  const [lastAddedId, setLastAddedId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const dismissToast = useCallback(() => setToast(null), []);
+
   const handleAdd = (newTransaction) => {
-    setTransactions([...transactions, newTransaction]);
+    setTransactions(prev => [...prev, newTransaction]);
+    setLastAddedId(newTransaction.id);
+    setToast({
+      id: Date.now(),
+      message: `Added “${newTransaction.description}” (${formatSigned(signedAmount(newTransaction))})`,
+      onUndo: () => setTransactions(prev => prev.filter(t => t.id !== newTransaction.id)),
+    });
   };
 
   const handleDelete = (id) => {
-    setTransactions(transactions.filter(t => t.id !== id));
+    const index = transactions.findIndex(t => t.id === id);
+    const removed = transactions[index];
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    setToast({
+      id: Date.now(),
+      message: `Deleted “${removed.description}”`,
+      onUndo: () => {
+        setTransactions(prev => [...prev.slice(0, index), removed, ...prev.slice(index)]);
+        setLastAddedId(removed.id);
+      },
+    });
   };
 
+  const dates = transactions.map(t => t.date).sort();
+  const period = dates.length > 0
+    ? `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`
+    : "No transactions yet";
+
   return (
-    <div className="app">
-      <h1>Finance Tracker</h1>
-      <p className="subtitle">Track your income and expenses</p>
+    <main className="app">
+      <header className="app-header">
+        <h1 className="app-name">Finance Tracker</h1>
+        <p className="period-pill">{period}</p>
+      </header>
 
       <Summary transactions={transactions} />
-      <SpendingChart transactions={transactions} />
-      <TransactionForm categories={categories} onAdd={handleAdd} />
-      <TransactionList transactions={transactions} categories={categories} onDelete={handleDelete} />
-    </div>
+      <div className="workspace">
+        <TransactionForm categories={categories} onAdd={handleAdd} />
+        <SpendingChart transactions={transactions} />
+      </div>
+      <TransactionList transactions={transactions} categories={categories} onDelete={handleDelete} lastAddedId={lastAddedId} />
+
+      <Toast toast={toast} onDismiss={dismissToast} />
+    </main>
   );
 }
 
